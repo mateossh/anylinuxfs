@@ -814,12 +814,12 @@ fn load_config(common_args: &CommonArgs) -> anyhow::Result<Config> {
     let data_path = {
         let xdg_data_home_env = env::var("XDG_DATA_HOME")
             .map_err(anyhow::Error::from)
-            .and_then(PathBuf::from)
+            .and_then(|s| Ok(PathBuf::from(s)))
             .ok();
 
-        match Path::exists(macos_library_dir) {
-            Ok(dir) => dir,
-            Err(_) => match xdg_data_home_env {
+        match Path::exists(&macos_library_dir) {
+            true => macos_library_dir.to_owned(),
+            false => match xdg_data_home_env {
                 Some(dir) => dir,
                 None => home_dir.join(".local/share"),
             },
@@ -829,12 +829,12 @@ fn load_config(common_args: &CommonArgs) -> anyhow::Result<Config> {
     let config_path = {
         let xdg_config_home_env = env::var("XDG_CONFIG_HOME")
             .map_err(anyhow::Error::from)
-            .and_then(PathBuf::from)
+            .and_then(|s| Ok(PathBuf::from(s)))
             .ok();
 
-        match Path::exists(macos_library_dir) {
-            Ok(dir) => dir,
-            Err(_) => match xdg_config_home_env {
+        match Path::exists(&macos_library_dir) {
+            true => macos_library_dir.to_owned(),
+            false => match xdg_config_home_env {
                 Some(dir) => dir,
                 None => home_dir.join(".config"),
             },
