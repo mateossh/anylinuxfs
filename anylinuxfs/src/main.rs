@@ -809,11 +809,49 @@ fn load_config(common_args: &CommonArgs) -> anyhow::Result<Config> {
         .parent()
         .context("Failed to get prefix directory")?;
 
-    // ~/.anylinuxfs/alpine/rootfs
-    let alpine_path = home_dir.join(".anylinuxfs").join("alpine");
+    let macos_library_dir = home_dir.join("Library/Application Support");
+
+    let data_path = {
+        let xdg_data_home_env = env::var("XDG_DATA_HOME")
+            .map_err(anyhow::Error::from)
+            .and_then(PathBuf::from)
+            .ok();
+
+        match Path::exists(macos_library_dir) {
+            Ok(dir) => dir,
+            Err(_) => match xdg_data_home_env {
+                Some(dir) => dir,
+                None => home_dir.join(".local/share"),
+            },
+        }
+    };
+
+    let config_path = {
+        let xdg_config_home_env = env::var("XDG_CONFIG_HOME")
+            .map_err(anyhow::Error::from)
+            .and_then(PathBuf::from)
+            .ok();
+
+        match Path::exists(macos_library_dir) {
+            Ok(dir) => dir,
+            Err(_) => match xdg_config_home_env {
+                Some(dir) => dir,
+                None => home_dir.join(".config"),
+            },
+        }
+    };
+
+    // ~/Library/Application Support/anylinuxfs/alpine/rootfs
+    // $XDG_DATA_HOME/anylinuxfs/alpine/rootfs
+    // ~/.local/share/anylinuxfs/alpine/rootfs
+    let alpine_path = data_path.join("anylinuxfs").join("alpine");
     let root_path = alpine_path.join("rootfs");
     let root_ver_file_path = alpine_path.join("rootfs.ver");
-    let config_file_path = home_dir.join(".anylinuxfs").join("config.toml");
+
+    // ~/Library/Application Support/anylinuxfs/config.toml
+    // $XDG_DATA_HOME/anylinuxfs/config.toml
+    // ~/.config/config.toml
+    let config_file_path = config_path.join("anylinuxfs").join("config.toml");
     let log_dir = home_dir.join("Library").join("Logs");
     let log_file_path = log_dir.join("anylinuxfs.log");
     let gvproxy_log_path = log_dir.join("gvproxy.log");
