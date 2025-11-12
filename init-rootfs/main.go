@@ -211,7 +211,7 @@ func configureDNS(rootfsPath, nameserver string) error {
 }
 
 func appendCaCerts(cfg *Config) error {
-	userCaCertPath := filepath.Join(cfg.DataStorePath, "ca-certificates.crt")
+	userCaCertPath := filepath.Join(cfg.DataStorePath, "certs", "ca-certificates.crt")
 	caCertPath := fmt.Sprintf("%s/etc/ssl/certs/ca-certificates.crt", cfg.RootfsPath)
 
 	certs, err := os.ReadFile(userCaCertPath)
