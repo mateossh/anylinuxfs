@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	_ "embed"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -13,8 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"crypto/x509"
-	"encoding/pem"
 
 	"anylinuxfs/init-rootfs/vmrunner"
 
@@ -42,7 +42,8 @@ type Config struct {
 	RootfsPath        string
 	VmSetupScriptPath string
 	PrefixDir         string
-	UserStore         string
+	DataStorePath     string
+	ConfigStorePath   string
 }
 
 type Preferences struct {
@@ -57,8 +58,23 @@ func defaultConfig(userHomeDir, execDir string) Config {
 	imageName := "alpine"
 	tag := "latest"
 
-	userStore := filepath.Join(userHomeDir, ".anylinuxfs")
-	imageBasePath := filepath.Join(userStore, imageName)
+	xdgData := os.Getenv("XDG_DATA_HOME")     // $HOME/.local/share
+	xdgConfig := os.Getenv("XDG_CONFIG_HOME") // $HOME/.config
+
+	dataPath := filepath.Join(userHomeDir, ".local/share")
+	if xdgData != "" {
+		dataPath = xdgData
+	}
+
+	configPath := filepath.Join(userHomeDir, ".config")
+	if xdgConfig != "" {
+		configPath = xdgConfig
+	}
+
+	dataPath = filepath.Join(dataPath, "anylinuxfs")
+	configPath = filepath.Join(configPath, "anylinuxfs")
+
+	imageBasePath := filepath.Join(dataPath, imageName)
 	imageOciPath := filepath.Join(imageBasePath, "oci")
 	rootfsPath := filepath.Join(imageBasePath, "rootfs")
 
@@ -66,7 +82,8 @@ func defaultConfig(userHomeDir, execDir string) Config {
 
 	prefixDir := filepath.Dir(execDir)
 
-	fmt.Printf("User store: %s\n", userStore)
+	fmt.Printf("Data store: %s\n", dataPath)
+	fmt.Printf("Config store path: %s\n", configPath)
 	fmt.Printf("Image base path: %s\n", imageBasePath)
 	fmt.Printf("Image OCI path: %s\n", imageOciPath)
 	fmt.Printf("Rootfs path: %s\n", rootfsPath)
@@ -80,7 +97,8 @@ func defaultConfig(userHomeDir, execDir string) Config {
 		RootfsPath:        rootfsPath,
 		VmSetupScriptPath: vmSetupScriptPath,
 		PrefixDir:         prefixDir,
-		UserStore:         userStore,
+		DataStorePath:     dataPath,
+		ConfigStorePath:   configPath,
 	}
 }
 
@@ -193,7 +211,7 @@ func configureDNS(rootfsPath, nameserver string) error {
 }
 
 func appendCaCerts(cfg *Config) error {
-	userCaCertPath := filepath.Join(cfg.UserStore, "ca-certificates.crt")
+	userCaCertPath := filepath.Join(cfg.DataStorePath, "ca-certificates.crt")
 	caCertPath := fmt.Sprintf("%s/etc/ssl/certs/ca-certificates.crt", cfg.RootfsPath)
 
 	certs, err := os.ReadFile(userCaCertPath)
@@ -236,7 +254,7 @@ func appendCaCerts(cfg *Config) error {
 			fmt.Printf("Malformed CA certificate. Skipping...\n")
 		}
 	}
-	
+
 	fmt.Printf("Added %v entries to CA certificate store\n", certCount)
 	return nil
 }
@@ -283,8 +301,8 @@ func getDefaultPackages() []string {
 	return packages
 }
 
-func loadCustomPackages(userStore string) []string {
-	configPath := filepath.Join(userStore, "config.toml")
+func loadCustomPackages(configStorePath string) []string {
+	configPath := filepath.Join(configStorePath, "config.toml")
 
 	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -304,7 +322,7 @@ func loadCustomPackages(userStore string) []string {
 
 func writeSetupScript(cfg *Config) error {
 	// Load custom packages from config
-	customPackages := loadCustomPackages(cfg.UserStore)
+	customPackages := loadCustomPackages(cfg.ConfigStorePath)
 
 	// Default packages
 	defaultPackages := getDefaultPackages()
